@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.cross_validation import train_test_split
@@ -56,38 +57,65 @@ def linear_reg_score(train_features, train_labels, test_features, test_labels):
 
   print "Score: " + str(gini(test_labels, pred_labels))
 
-def xgb_score(train_features, train_labels, test_features, test_labels):
-  xg_train = xgb.DMatrix(train_features, label=train_labels)
-  xg_val = xgb.DMatrix(train_features, label=train_labels)
-  xg_test = xgb.DMatrix(test_features)
+def gb_reg_score(train_features, train_labels, test_features, test_labels):
+  gb_regressor = GradientBoostingRegressor(warm_start=True)
 
-  params = {'objective': "reg:linear", 'eta': 1, 'silent': 1, 'max_depth': 9}
+  gb_regressor.fit(train_features, train_labels)
 
-  watchlist = [(xg_train, 'train'), (xg_val, 'val')]
-
-  plst = list(params.items())
-
-  model = xgb.train(list(params.items()), xg_train, 10000, watchlist, early_stopping_rounds=120)
-
-  pred_labels_1 = model.predict(xg_test, ntree_limit=model.best_iteration)
-
-  # Reverse
-  train_features = train_features[::-1,:]
-  train_labels = np.log(train_labels[::-1])
-
-  watchlist = [(xg_train, 'train'), (xg_val, 'val')]
-
-  xg_train = xgb.DMatrix(train_features, label=train_labels)
-  xg_val = xgb.DMatrix(train_features, label=train_labels)
-
-  model = xgb.train(list(params.items()), xg_train, 10000, watchlist, early_stopping_rounds=120)
-
-  pred_labels_2 = model.predict(xg_test, ntree_limit=model.best_iteration)
-
-  # Combine predictions
-  pred_labels = (pred_labels_1) * 1.4 + (pred_labels_2) * 8.6
+  pred_labels = gb_regressor.predict(test_features)
 
   print "Score: " + str(gini(test_labels, pred_labels))
+
+# Based on https://www.kaggle.com/soutik/liberty-mutual-group-property-inspection-prediction/blah-xgb/run/43354
+def xgb_score(train_features, train_labels, test_features, test_labels):
+
+  params = {}
+  params["objective"] = "reg:linear"
+  params["eta"] = 0.005
+  params["min_child_weight"] = 6
+  params["subsample"] = 0.7
+  params["colsample_bytree"] = 0.7
+  params["scale_pos_weight"] = 1
+  params["silent"] = 1
+  params["max_depth"] = 9
+    
+  plst = list(params.items())
+
+  # Using 5000 rows for early stopping. 
+  offset = 4000
+
+  num_rounds = 10000
+  xgtest = xgb.DMatrix(test_features)
+
+  # Create a train and validation dmatrices 
+  xgtrain = xgb.DMatrix(train_features[offset:,:], label=train_labels[offset:])
+  xgval = xgb.DMatrix(train_features[:offset,:], label=train_labels[:offset])
+
+  # Train using early stopping and predict
+  watchlist = [(xgtrain, 'train'),(xgval, 'val')]
+  model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=120)
+  preds1 = model.predict(xgtest,ntree_limit=model.best_iteration)
+
+
+  # Reverse train and labels and use different 5k for early stopping. 
+  # This adds very little to the score but it is an option if you are concerned about using all the data. 
+  train = train_features[::-1,:]
+  labels = np.log(train_labels[::-1])
+
+  xgtrain = xgb.DMatrix(train_features[offset:,:], label=train_labels[offset:])
+  xgval = xgb.DMatrix(train_features[:offset,:], label=train_labels[:offset])
+
+  watchlist = [(xgtrain, 'train'),(xgval, 'val')]
+  model = xgb.train(plst, xgtrain, num_rounds, watchlist, early_stopping_rounds=120)
+  preds2 = model.predict(xgtest,ntree_limit=model.best_iteration)
+
+
+  # Combine predictions
+  # Since the metric only cares about relative rank we don't need to average
+  pred_labels = (preds1)*1.4 + (preds2)*8.6
+
+  print "Score: " + str(gini(test_labels, pred_labels))
+
 
 def gini(true_labels, pred_labels):
   # Get number of samples
@@ -122,6 +150,9 @@ if __name__ == "__main__":
   elif args.model == "rf":
     train_features, test_features, train_labels, test_labels = process_data()
     rf_score(train_features, train_labels, test_features, test_labels)
+  elif args.model == "gbreg":
+    train_features, test_features, train_labels, test_labels = process_data()
+    gb_reg_score(train_features, train_labels, test_features, test_labels)
   elif args.model == "xgb":
     train_features, test_features, train_labels, test_labels = process_data()
     xgb_score(train_features, train_labels, test_features, test_labels)
