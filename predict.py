@@ -140,7 +140,7 @@ def gini(true_labels, pred_labels):
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument("model", help="the model to use, one of: linreg, rf, xgb", type=str)
+  parser.add_argument("model", help="the model to use, one of: linreg, rf, gbreg, xgb", type=str)
 
   args = parser.parse_args()
 
