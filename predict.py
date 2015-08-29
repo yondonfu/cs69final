@@ -40,7 +40,7 @@ def process_data():
   return train_features, test_features, train_labels, test_labels
 
 def rf_score(train_features, train_labels, test_features, test_labels):
-  forest_regressor = RandomForestRegressor(n_estimators=200, n_jobs=-1, verbose=3, oob_score=True)
+  forest_regressor = RandomForestRegressor(n_estimators=100, n_jobs=-1, verbose=3, oob_score=True)
 
   forest_regressor.fit(train_features, train_labels)
 
@@ -116,7 +116,7 @@ def xgb_score(train_features, train_labels, test_features, test_labels):
 
   print "Score: " + str(gini(test_labels, pred_labels))
 
-
+# Based on https://www.kaggle.com/jpopham91/liberty-mutual-group-property-inspection-prediction/gini-scoring-simple-and-efficient
 def gini(true_labels, pred_labels):
   # Get number of samples
   num_samples = true_labels.shape[0]
